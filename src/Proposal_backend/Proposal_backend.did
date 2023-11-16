@@ -6,18 +6,18 @@ type Proposal  = record{
     is_active: bool;
     voted: vec principal;
     owner: principal;
-}
+};
 
 type CreateProposal = record {
     description : text;
     is_active: bool;
-} 
+};
 
 type Result = variant {
     Ok;
     Err: VoteError;
 
-}
+};
 
 type VoteError = variant {
     AlreadyVoted;
@@ -26,13 +26,13 @@ type VoteError = variant {
     AccessRejected;
     UpdateError;
 
-}
+};
 
 type Choice = variant {
     Approve;
     Reject;
     Pass;
-}
+};
 
 service : {
     "get_proposal" : (nat64) -> (opt Proposal) query;
