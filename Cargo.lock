@@ -3,6 +3,17 @@
 version = 3
 
 [[package]]
+name = "Proposal_backend"
+version = "0.1.0"
+dependencies = [
+ "candid",
+ "ic-cdk",
+ "ic-cdk-timers",
+ "ic-stable-structures",
+ "serde",
+]
+
+[[package]]
 name = "aho-corasick"
 version = "1.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -272,17 +283,6 @@ checksum = "f258a7194e7f7c2a7837a8913aeab7fd8c383457034fa20ce4dd3dcb813e8eb8"
 dependencies = [
  "libc",
  "windows-sys",
-]
-
-[[package]]
-name = "exam_backend"
-version = "0.1.0"
-dependencies = [
- "candid",
- "ic-cdk",
- "ic-cdk-timers",
- "ic-stable-structures",
- "serde",
 ]
 
 [[package]]

@@ -5,7 +5,7 @@ type Proposal  = record{
     pass : nat32;
     is_active: bool;
     voted: vec principal;
-    owner: principal
+    owner: principal;
 }
 
 type CreateProposal = record {

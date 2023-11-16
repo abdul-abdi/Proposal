@@ -107,12 +107,8 @@ fn edit_proposal(key: u64, proposal : CreateProposal) -> Result<(), VoteError> {
 
         let value: Proposal = Proposal{
             description : proposal.description,
-            approve : proposal.approve,
-            reject: proposal.reject,
-            pass: proposal.pass,
             is_active : proposal.is_active,
-            voted: proposal.voted,
-            owner: ic_cdk::caller(),
+            ..old_proposal
 
         };
 
@@ -129,9 +125,7 @@ fn edit_proposal(key: u64, proposal : CreateProposal) -> Result<(), VoteError> {
 fn end_proposal(key: u64) -> Result<(), VoteError> {
     PROPOSAL_MAP.with(|p| {
         let proposal_opt: Option<Proposal> = p.borrow().get(&key);
-        let mut proposal: Proposal;
-        
-        match proposal_opt{
+        let mut proposal: Proposal = match proposal_opt{
             Some(value) => value,
             None => return Err(VoteError::NoSuchProposal),
         };
@@ -156,9 +150,7 @@ fn end_proposal(key: u64) -> Result<(), VoteError> {
 fn vote(key: u64, choice : Choice) -> Result<(), VoteError> {
     PROPOSAL_MAP.with(|p| {
         let proposal_opt: Option<Proposal> = p.borrow().get(&key);
-        let mut proposal: Proposal;
-        
-        match proposal_opt{
+        let mut proposal: Proposal = match proposal_opt{
             Some(value) => value,
             None => return Err(VoteError::NoSuchProposal),
         };
