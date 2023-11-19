@@ -44,11 +44,11 @@ struct CreateProposal {
 
 impl Storable for Proposal {
     fn to_bytes(&self) -> std::borrow::Cow<[u8]> {
-        Cow::Owned(Encode!(self).unwrap())
+        Cow::Borrowed(Encode!(self).expect("Failed to encode Proposal"))
     }
 
     fn from_bytes(bytes: std::borrow::Cow<[u8]>) -> Self {
-        Decode!(bytes.as_ref(), Self).unwrap()
+        Decode!(bytes.as_ref(), Self).expect("Failed to decode Proposal")
     }
 }
 
@@ -67,8 +67,8 @@ thread_local! {
 }
 
 # [ic_cdk::query]
-fn get_proposal(key: u64) -> Option<Proposal> {
-    PROPOSAL_MAP.with(|p| p.borrow().get(&key))
+fn get_proposal(key: u64) -> Result<Option<Proposal>, String> {
+    Ok(PROPOSAL_MAP.with(|p| p.borrow().get(&key)).cloned())
 }
 
 # [ic_cdk::query]
@@ -78,7 +78,11 @@ fn get_proposal_count() -> u64 {
 
 
 # [ic_cdk::update]
-fn create_proposal(key: u64, proposal : CreateProposal) -> Option<Proposal> {
+fn create_proposal(key: u64, proposal : CreateProposal) -> Result<Option<Proposal>, String> {
+    if PROPOSAL_MAP.with(|p| p.borrow().contains_key(&key)) {
+        return Err("Proposal with the same key already exists.".to_string());
+    }
+
     let value : Proposal = Proposal { 
         description: proposal.description, 
         approve: 0u32, 
@@ -89,7 +93,10 @@ fn create_proposal(key: u64, proposal : CreateProposal) -> Option<Proposal> {
         owner: ic_cdk::caller(), 
     };
 
-    PROPOSAL_MAP.with(|p| p.borrow_mut().insert(key, value))
+    PROPOSAL_MAP.with(|p| {
+        p.borrow_mut().insert(key, value);
+        Ok(Some(value))
+    })
 }
 
 # [ic_cdk::update]
