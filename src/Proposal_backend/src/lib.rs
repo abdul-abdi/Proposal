@@ -1,12 +1,14 @@
+
 use candid::{CandidType, Decode, Deserialize, Encode};
 use ic_cdk::{caller, query, update};
 use ic_stable_structures::{
     memory_manager::{MemoryId, MemoryManager, VirtualMemory},
-    {BoundedStorable, DefaultMemoryImpl, StableBTreeMap, Storable},
+    {BoundedStorable, DefaultMemoryImpl,StableBTreeMap, Storable, Cell},
 };
 use std::{borrow::Cow, cell::RefCell};
 
 type Memory = VirtualMemory<DefaultMemoryImpl>;
+type IdCell = Cell<u64, Memory>;
 const MAX_VALUE_SIZE: u32 = 5000;
 
 #[derive(CandidType, Deserialize)]
@@ -27,6 +29,7 @@ enum VoteError {
 
 #[derive(CandidType, Deserialize)]
 struct Proposal {
+    id: u64,
     description: String,
     approve: u32,
     reject: u32,
@@ -61,14 +64,19 @@ thread_local! {
     static MEMORY_MANAGER: RefCell<MemoryManager<DefaultMemoryImpl>> =
         RefCell::new(MemoryManager::init(DefaultMemoryImpl::default()));
 
+    static ID_COUNTER: RefCell<IdCell> = RefCell::new(
+        IdCell::init(MEMORY_MANAGER.with(|m| m.borrow().get(MemoryId::new(0))), 0)
+            .expect("Cannot create a counter")
+    );
+
     static PROPOSAL_MAP: RefCell<StableBTreeMap<u64, Proposal, Memory>> = RefCell::new(
-        StableBTreeMap::init(MEMORY_MANAGER.with(|m| m.borrow().get(MemoryId::new(0))))
+        StableBTreeMap::init(MEMORY_MANAGER.with(|m| m.borrow().get(MemoryId::new(1))))
     );
 }
 
 #[query]
-fn get_proposal(key: u64) -> Option<Proposal> {
-    PROPOSAL_MAP.with(|p| p.borrow().get(&key))
+fn get_proposal(id: u64) -> Option<Proposal> {
+    PROPOSAL_MAP.with(|p| p.borrow().get(&id))
 }
 
 #[query]
@@ -77,8 +85,15 @@ fn get_proposal_count() -> u64 {
 }
 
 #[update]
-fn create_proposal(key: u64, proposal: CreateProposal) -> Option<Proposal> {
+fn create_proposal(proposal: CreateProposal) -> Option<Proposal> {
+    let id = ID_COUNTER
+    .with(|counter| {
+        let current_value = *counter.borrow().get();
+        counter.borrow_mut().set(current_value + 1)
+    })
+    .expect("cannot increment id counter");
     let value: Proposal = Proposal {
+        id,
         description: proposal.description,
         approve: 0u32,
         reject: 0u32,
@@ -88,15 +103,15 @@ fn create_proposal(key: u64, proposal: CreateProposal) -> Option<Proposal> {
         owner: caller(),
     };
 
-    PROPOSAL_MAP.with(|p| p.borrow_mut().insert(key, value))
+    PROPOSAL_MAP.with(|p| p.borrow_mut().insert(id, value));
+    Some(PROPOSAL_MAP.with(|p| p.borrow().get(&id).unwrap()))
 }
 
 #[update]
-fn edit_proposal(key: u64, proposal: CreateProposal) -> Result<(), VoteError> {
-    PROPOSAL_MAP.with(|p| {
-        let old_proposal_opt: Option<Proposal> = p.borrow().get(&key);
+fn edit_proposal(id: u64, proposal: CreateProposal) -> Result<(), VoteError> {
+    let result = PROPOSAL_MAP.with(|p| {
+        let old_proposal_opt: Option<Proposal> = p.borrow().get(&id);
         let old_proposal = old_proposal_opt.ok_or(VoteError::NoSuchProposal)?;
-
         if caller() != old_proposal.owner {
             return Err(VoteError::AccessRejected);
         };
@@ -107,14 +122,19 @@ fn edit_proposal(key: u64, proposal: CreateProposal) -> Result<(), VoteError> {
             ..old_proposal
         };
 
-        p.borrow_mut().insert(key, value).ok_or(VoteError::UpdateError("Insert failed".to_string()))
-    })
+        p.borrow_mut().insert(value.id, value).ok_or(VoteError::UpdateError("Insert failed".to_string()))
+    });
+    if result.is_ok() {
+        Ok(())
+    }else {
+        return Err(result.err().unwrap())
+    }
 }
 
 #[update]
-fn end_proposal(key: u64) -> Result<(), VoteError> {
-    PROPOSAL_MAP.with(|p| {
-        let proposal_opt: Option<Proposal> = p.borrow().get(&key);
+fn end_proposal(id: u64) -> Result<(), VoteError> {
+    let result = PROPOSAL_MAP.with(|p| {
+        let proposal_opt: Option<Proposal> = p.borrow().get(&id);
         let mut proposal = proposal_opt.ok_or(VoteError::NoSuchProposal)?;
 
         if caller() != proposal.owner {
@@ -123,14 +143,21 @@ fn end_proposal(key: u64) -> Result<(), VoteError> {
 
         proposal.is_active = false;
 
-        p.borrow_mut().insert(key, proposal).ok_or(VoteError::UpdateError("Insert failed".to_string()))
-    })
+        p.borrow_mut().insert(id, proposal).ok_or(VoteError::UpdateError("Insert failed".to_string()))
+    });
+
+    if result.is_ok() {
+        Ok(())
+    }else {
+        return Err(result.err().unwrap())
+    }
+
 }
 
 #[update]
-fn vote(key: u64, choice: Choice) -> Result<(), VoteError> {
-    PROPOSAL_MAP.with(|p| {
-        let proposal_opt: Option<Proposal> = p.borrow().get(&key);
+fn vote(id: u64, choice: Choice) -> Result<(), VoteError> {
+    let result = PROPOSAL_MAP.with(|p| {
+        let proposal_opt: Option<Proposal> = p.borrow().get(&id);
         let mut proposal = proposal_opt.ok_or(VoteError::NoSuchProposal)?;
 
         let caller = caller();
@@ -149,6 +176,11 @@ fn vote(key: u64, choice: Choice) -> Result<(), VoteError> {
 
         proposal.voted.push(caller);
 
-        p.borrow_mut().insert(key, proposal).ok_or(VoteError::UpdateError("Insert failed".to_string()))
-    })
+        p.borrow_mut().insert(id, proposal).ok_or(VoteError::UpdateError("Insert failed".to_string()))
+    });
+    if result.is_ok() {
+        Ok(())
+    }else {
+        return Err(result.err().unwrap())
+    }
 }
