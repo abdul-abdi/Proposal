@@ -5,20 +5,21 @@ use ic_stable_structures::{
     memory_manager::{MemoryId, MemoryManager, VirtualMemory},
     {BoundedStorable, DefaultMemoryImpl,StableBTreeMap, Storable, Cell},
 };
+use serde::Serialize;
 use std::{borrow::Cow, cell::RefCell};
 
 type Memory = VirtualMemory<DefaultMemoryImpl>;
 type IdCell = Cell<u64, Memory>;
 const MAX_VALUE_SIZE: u32 = 5000;
 
-#[derive(CandidType, Deserialize)]
+#[derive(CandidType, Deserialize, Serialize, Clone)]
 enum Choice {
     Approve,
     Reject,
     Pass,
 }
 
-#[derive(CandidType)]
+#[derive(CandidType, Deserialize, Serialize)]
 enum VoteError {
     AlreadyVoted,
     ProposalIsNotActive,
@@ -27,7 +28,7 @@ enum VoteError {
     UpdateError(String), // Improved error message
 }
 
-#[derive(CandidType, Deserialize)]
+#[derive(CandidType, Deserialize, Clone, Serialize)]
 struct Proposal {
     id: u64,
     description: String,
@@ -39,7 +40,7 @@ struct Proposal {
     owner: candid::Principal,
 }
 
-#[derive(CandidType, Deserialize)]
+#[derive(CandidType, Deserialize, Clone, Serialize)]
 struct CreateProposal {
     description: String,
     is_active: bool,
@@ -184,3 +185,6 @@ fn vote(id: u64, choice: Choice) -> Result<(), VoteError> {
         return Err(result.err().unwrap())
     }
 }
+
+// need this to generate candid
+ic_cdk::export_candid!();
